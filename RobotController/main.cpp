@@ -12,6 +12,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <cstdlib> 
+#include <map>
+#include <string_view>
 
 #define IS_DUALSENSE 1
 #define IS_XBOX 0
@@ -22,18 +24,18 @@
   #define PATH "Sony Interactive Entertainment DualSense Wireless Controller"
 #endif
 
-enum class PS5_BTNS: uint16_t {
-  X = 304,
-  TRIANGLE,
-  SQUARE,
-  CIRCLE
-};
-
 // if this is one set currentPress to the correct event key and send over udp 
 std::atomic<int> buttonIsPressed{0};
 std::atomic<int> currentPress{0};
 
 // TODO: Add 2 seperate threads, one for udp client and one for processing inputs 
+
+std::map<int,std::string_view> btnMap = {{304,"Cross"},{305,"Circle"},{307,"Triangle"},{308,"Square"}};
+void getEvent(int event) {
+  if(auto it = btnMap.find(event); it != btnMap.end()) {
+    std::cout << btnMap[event] << "\n";
+  }
+}
 
 int FindDevice(void) {
 
@@ -67,6 +69,7 @@ int FindDevice(void) {
 	return -1;
 
 }
+
 
 // Create UDP Client for esp32 wifi connection
 void createClient(void) {
@@ -106,25 +109,20 @@ void createClient(void) {
     exit(0);
   }
 
-  const char* message = "hello";
-
   while(true) {
     int n = read(fd,&event,sizeof(event));
 
     if(n == sizeof(event)) {
       if(event.type == EV_KEY) {
-        std::cout << "Button Pressed" << "\n";
-          if(event.code == 304) {
-            
-            int bytes_sent = sendto(s,message,strlen(message),0,(struct sockaddr*)&server_addr,addr_len);
-            std::cout << "Button pressed3" << "\n";
-          }
+            int packet = htonl(event.code);
+            //getEvent(event.code);
+            std::size_t bytes_sent = sendto(s,&packet,sizeof(packet),0,(struct sockaddr*)&server_addr,addr_len);
       }
+    }
       //else if(event.type == EV_ABS) {
         //std::cout << "Joystick event" << "\n";
       //}
-    }
-  } 
+  }
 
   std::cout << "Packet Sent" << "\n";
   close(fd);
@@ -153,10 +151,7 @@ void controller_loop(void) {
 
     if(n == sizeof(event)) {
       if(event.type == EV_KEY) {
-        std::cout << "Button Pressed" << "\n";
-          if(event.code == 304) {
-            std::cout << "Button pressed3" << "\n";
-          }
+        getEvent(event.code);
       }
       //else if(event.type == EV_ABS) {
         //std::cout << "Joystick event" << "\n";
@@ -167,6 +162,6 @@ void controller_loop(void) {
 }
 
 int main(void) {
-  createClient();
   
+  createClient();
 }
